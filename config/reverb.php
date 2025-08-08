@@ -25,6 +25,9 @@ return [
     | the array below. You should ensure all the options are present.
     |
     */
+    'allowed_origin' => [
+         'http://localhost:5173',
+    ],
 
     'servers' => [
 

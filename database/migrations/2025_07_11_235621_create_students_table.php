@@ -13,9 +13,10 @@ return new class extends Migration
             {
             Schema::create('students', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('rfid_uid')->unique()->nullable(); // RFID tag can be added later
+            $table->string('rfid_uid')->unique()->nullable(); // RFID tag can be added later
             $table->string('student_id');
             $table->string('first_name');
+            $table->string('middle_name');
             $table->string('last_name');
             $table->string('email');
             $table->unsignedBigInteger('program_id')->nullable();

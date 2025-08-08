@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignId('laboratory_id')->constrained('laboratories')->cascadeOnDelete();
             $table->string('computer_number');
             $table->string('ip_address');
+            $table->string('mac_address')->nullable();
             $table->enum('status', ['active', 'inactive', 'maintenance']);
             $table->boolean('is_lock')->default(false);
             $table->boolean('is_online')->default(true);

@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('computers', function (Blueprint $table) {
-            $table->boolean('state')->default(false);
+        Schema::table('computer_logs', function (Blueprint $table) {
+            $table->string('mac_address')->nullable()->after('ip_address');
         });
     }
 
@@ -21,8 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('computers', function (Blueprint $table) {
-            //
+        Schema::table('computer_logs', function (Blueprint $table) {
+            $table->dropColumn('mac_address');
         });
     }
 };

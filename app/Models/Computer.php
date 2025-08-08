@@ -9,9 +9,11 @@ class Computer extends Model
     protected $fillable = [
         "computer_number",
         "ip_address",
+        "mac_address",
+        "is_lock",
+        "is_online",
         "laboratory_id",
         "status",
-        "state"
     ];
 
     public function laboratory(){

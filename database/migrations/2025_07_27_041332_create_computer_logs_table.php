@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignId('student_id')->constrained('students')->onDelete('cascade');
             $table->foreignId('computer_id')->constrained('computers')->onDelete('cascade');
             $table->string('ip_address');
+            $table->string('mac_address')->nullable();
             $table->string('program');
             $table->string('year_level');
             $table->timestamp('start_time')->nullable();

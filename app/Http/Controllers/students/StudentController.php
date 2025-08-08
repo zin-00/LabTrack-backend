@@ -5,6 +5,8 @@ namespace App\Http\Controllers\students;
 use App\Http\Controllers\Controller;
 use App\Models\Student;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 
 class StudentController extends Controller
 {
@@ -21,6 +23,7 @@ class StudentController extends Controller
             'student_id'    => ['required', 'string', 'max:255'],
             'rfid_uid'      => ['required', 'string', 'max:255'],
             'first_name'    => ['required', 'string', 'max:255'],
+            'middle_name'   => ['required', 'string', 'max:255'],
             'last_name'     => ['required', 'string', 'max:255'],
             'email'         => ['required', 'email', 'max:255'],
             'program_id'    => ['required', 'exists:programs,id'],
@@ -33,12 +36,131 @@ class StudentController extends Controller
             'student' => $student
         ], 201);
     }
+public function importStudents(Request $request) {
+    $validator = Validator::make($request->all(), [
+        'students' => ['required', 'array', 'min:1'],
+        'students.*.student_id' => ['required', 'string', 'max:255'],
+        'students.*.rfid_uid' => ['required', 'string', 'max:255'],
+        'students.*.first_name' => ['required', 'string', 'max:255'],
+        'students.*.middle_name' => ['required', 'string', 'max:255'],
+        'students.*.last_name' => ['required', 'string', 'max:255'],
+        'students.*.email' => ['required', 'email', 'max:255'],
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'message' => 'Validation error',
+            'errors' => $validator->errors()
+        ], 422);
+    }
+
+    $importedCount = 0;
+    $skippedCount = 0;
+    $errors = [];
+
+    DB::beginTransaction();
+    try {
+        foreach ($request->students as $studentData) {
+            try {
+                // Validate individual student
+                $studentValidator = Validator::make($studentData, [
+                    'student_id' => ['required', 'string', 'max:255', 'unique:students,student_id'],
+                    'rfid_uid' => ['required', 'string', 'max:255', 'unique:students,rfid_uid'],
+                    'email' => ['required', 'email', 'max:255', 'unique:students,email'],
+                ]);
+
+                if ($studentValidator->fails()) {
+                    $skippedCount++;
+                    $errors[] = [
+                        'student' => $studentData,
+                        'errors' => $studentValidator->errors()->toArray()
+                    ];
+                    continue;
+                }
+
+                Student::create($studentData);
+                $importedCount++;
+            } catch (\Exception $e) {
+                $skippedCount++;
+                $errors[] = [
+                    'student' => $studentData,
+                    'error' => $e->getMessage()
+                ];
+            }
+        }
+
+        DB::commit();
+
+        return response()->json([
+            'message' => 'Bulk import completed',
+            'imported_count' => $importedCount,
+            'skipped_count' => $skippedCount,
+            'errors' => $errors
+        ], 201);
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return response()->json([
+            'message' => 'Error during bulk import',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+    // public function importStudents(Request $request){
+    //     $validator = Validator::make($request->all(), [
+    //         'students' => ['required', 'array', 'min:1'],
+    //         'students.*.student_id'    => ['required', 'string', 'max:255'],
+    //         'students.*.rfid_uid'      => ['required', 'string', 'max:255'],
+    //         'students.*.first_name'    => ['required', 'string', 'max:255'],
+    //         'students.*.middle_name'   => ['required', 'string', 'max:255'],
+    //         'students.*.last_name'     => ['required', 'string', 'max:255'],
+    //         'students.*.email'         => ['required', 'email', 'max:255'],
+    //     ]);
+
+    //     if($validator->fails()){
+    //          return response()->json([
+    //             'message' => 'Validation error',
+    //             'errors' => $validator->errors()
+    //         ], 422);
+    //     }
+
+    //     try{
+    //         $importedCount = 0;
+    //         $skippedCount = 0;
+    //         $errors = [];
+
+    //         foreach($request->students as $studentsData){
+    //             try{
+    //                 Student::create($studentsData);
+    //                 $importedCount++;
+    //             }catch(\Exception $e){
+    //                 $skippedCount++;
+    //                 $errors[] = [
+    //                     'student_id' => $studentsData['student_id'] ?? 'N/A',
+    //                     'error' => $e->getMessage()
+    //                 ];
+    //             }
+    //         }
+
+    //         return response()->json([
+    //             'message' => 'Bulk import completed',
+    //             'imported_count' => $importedCount,
+    //             'skipped_count' => $skippedCount,
+    //             'errors' => $errors
+    //         ], 201);
+    //     }catch(\Exception $e){
+    //          return response()->json([
+    //             'message' => 'Error creating student',
+    //             'error' => $e->getMessage()
+    //         ], 500);
+    //     }
+    // }
 
     public function update(Request $request, $id){
     $data = $request->validate([
             'student_id'    => ['required', 'string', 'max:255'],
             'rfid_uid'      => ['required', 'string', 'max:255'],
             'first_name'    => ['required', 'string', 'max:255'],
+            'middle_name'   => ['required', 'string', 'max:255'],
             'last_name'     => ['required', 'string', 'max:255'],
             'email'         => ['required', 'email', 'max:255'],
             'program_id'    => ['required', 'exists:programs,id'],

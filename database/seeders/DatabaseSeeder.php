@@ -20,14 +20,15 @@ class DatabaseSeeder extends Seeder
         //     'email' => 'test@example.com',
         // ]);
 
-        $this->call(
-            LaboratorySeeder::class
-        );
-
+        // $this->call(
+        //     LaboratorySeeder::class
+        // );
         // $this->call(
         //     ProgramSeeder::class
         // );
-        $this->call(StudentSeeder::class);
+        // $this->call(StudentSeeder::class);
+
+        $this->call(ComputerSeeder::class);
 
     }
 }

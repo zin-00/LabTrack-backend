@@ -12,7 +12,10 @@ class ComputerLogController extends Controller
     public function index(Request $request){
 
         $today = Carbon::now();
-        $computer_logs = ComputerLog::with('student', 'computer.laboratory')->orderBy('created_at', 'desc')->paginate(7);
+         $startOfDay = $today->copy()->startOfDay();
+        $computer_logs = ComputerLog::with('student', 'computer.laboratory')
+        ->whereBetween('created_at', [$startOfDay, $today->copy()->endOfDay()])
+        ->orderBy('created_at', 'desc')->paginate(7);
         return response()->json([
             'computer_logs' => $computer_logs,
             'message' => 'Computer logs retrieved successfully'

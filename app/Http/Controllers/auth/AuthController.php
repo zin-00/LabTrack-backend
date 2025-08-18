@@ -52,6 +52,12 @@ class AuthController extends Controller
         ]);
     }
 
+    public function isEmailExist(Request $request)
+    {
+        $exists = User::where('email', $request->email)->exists();
+        return response()->json(['exists' => $exists]);
+    }
+
     public function logout(Request $request)
     {
         $user = auth()->user();

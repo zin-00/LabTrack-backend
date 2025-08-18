@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\computers;
 
+use App\Events\ComputerStatusUpdated;
 use App\Events\ComputerUnlockRequested;
 use App\Events\SetOnlineEvent;
 use App\Http\Controllers\Controller;
@@ -11,6 +12,7 @@ use App\Models\Student;
 use Carbon\Carbon;
 use Illuminate\Container\Attributes\DB;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class ComputerController extends Controller
 {
@@ -35,7 +37,7 @@ class ComputerController extends Controller
             'computer_number' => ['required','string', 'max:255'],
             'ip_address' => 'required|string|max:255',
             'status' => ['required', 'in:active,inactive,maintenance'],
-            'laboratory_id' => 'required|integer'
+            'laboratory_id' => 'required|integer',
         ]);
 
         $computer = Computer::create($data);
@@ -113,53 +115,87 @@ class ComputerController extends Controller
         $computer->is_lock = false;
         $computer->save();
 
-        ComputerLog::create([
-            'student_id'   => $student->id,
-            'computer_id'  => $computer->computer_number,
-            'ip_address'   => $computer->ip_address,
-            'mac_address'  => $computer->mac_address,
-            'program'      => $student->program?->program_name ?? 'N/A',
-            'year_level'   => $student->year_level,
-            'start_time'   => Carbon::now(),
-            'end_time'     => null,
-        ]);
+        $computer_log =  ComputerLog::create([
+                'student_id'   => $student->id,
+                'computer_id'  => $computer->id,
+                'ip_address'   => $computer->ip_address,
+                'mac_address'  => $computer->mac_address,
+                'program'      => $student->program?->program_name ?? 'N/A',
+                'year_level'   => $student->year_level,
+                'start_time'   => Carbon::now(),
+                'end_time'     => null,
+            ]);
+
+        if (!$computer_log) {
+            return response()->json(['message' => 'Failed to create computer log'], 500);
+        }
 
         event(new ComputerUnlockRequested($computer->id, $student->id));
 
         return response()->json([
             'message' => 'Computer state updated successfully',
-            'computer' => $computer
+            'computer' => $computer,
+            'computer_log' => $computer_log,
+
         ]);
 
     }
+ public function isOffline(Request $request, $ip)
+    {
+        $computer = Computer::where("ip_address", $ip)->first();
 
-    public function isOffline(Request $request, $ip){
+        if (!$computer) {
+            return response()->json([
+                "message" => "Computer not found"
+            ], 404);
+        }
 
-        Computer::where("ip_address", $ip)->update([
+        $computer->update([
             "is_online" => false,
             "is_lock" => true,
         ]);
 
-        ComputerLog::where("ip_address", $ip)->update([
-            "end_time" => Carbon::now()
-        ]);
+        // Update the latest active log for this computer
+        ComputerLog::where("ip_address", $ip)
+            ->whereNull("end_time")
+            ->update([
+                "end_time" => Carbon::now()
+            ]);
+
+        try {
+            event(new ComputerStatusUpdated($computer));
+        } catch (\Exception $e) {
+            Log::error("Broadcast event failed: " . $e->getMessage());
+        }
 
         return response()->json([
-            "message" => "Computer is offline"
+            "message" => "Computer is now offline",
+            "computer" => $computer
         ]);
     }
 
-    public function isOnline(Request $request, $ip){
-         $computer = Computer::where("ip_address", $ip)->firstOrFail();
-         $computer->update(['is_online' => true]);
+    public function isOnline(Request $request, $ip)
+    {
+        $computer = Computer::where("ip_address", $ip)->firstOrFail();
 
-        event(new SetOnlineEvent($computer));
+        $computer->update([
+            'is_online' => true,
+            'is_lock' => true,
+        ]);
+
+        try {
+            event(new ComputerStatusUpdated($computer));
+        } catch (\Exception $e) {
+            Log::error("Broadcast event failed: " . $e->getMessage());
+        }
+
         return response()->json([
-            "message" => "Computer is offline"
+            "message" => "Computer is online",
+            "computer" => $computer
         ]);
     }
 
-   public function getStatus($ip)
+    public function getStatus($ip)
     {
         $computer = Computer::with('laboratory')->where('ip_address', $ip)->first();
 
@@ -180,12 +216,12 @@ class ComputerController extends Controller
     public function register_computer(Request $request)
     {
         $data = $request->validate([
-            'computer_number'   => ['required', 'string', 'max:255'],
-            'ip_address'        => ['required', 'string', 'max:255', 'unique:computers,ip_address'],
-            'mac_address'       => ['required', 'string', 'max:255', 'unique:computers,mac_address'],
-            'status'            => ['required', 'in:active,inactive,maintenance'],
-            'is_lock'           => ['required', 'boolean'],
-            'is_online'         => ['required', 'boolean'],
+            'computer_number' => ['required', 'string', 'max:255'],
+            'ip_address' => ['required', 'string', 'max:255', 'unique:computers,ip_address'],
+            'mac_address' => ['required', 'string', 'max:255', 'unique:computers,mac_address'],
+            'status' => ['required', 'in:active,inactive,maintenance'],
+            'is_lock' => ['required', 'boolean'],
+            'is_online' => ['required', 'boolean'],
         ]);
 
         // Check if computer already exists by IP or MAC
@@ -225,5 +261,7 @@ class ComputerController extends Controller
 
     //     return response()->json(['error' => 'Computer not found'], 404);
     // }
+
+
 
 }

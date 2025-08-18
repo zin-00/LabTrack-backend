@@ -27,6 +27,7 @@ class StudentController extends Controller
             'last_name'     => ['required', 'string', 'max:255'],
             'email'         => ['required', 'email', 'max:255'],
             'program_id'    => ['required', 'exists:programs,id'],
+            'status'        => ['required', 'in:active,inactive,restricted'],
         ]);
 
         $student = Student::create($data);
@@ -164,6 +165,7 @@ public function importStudents(Request $request) {
             'last_name'     => ['required', 'string', 'max:255'],
             'email'         => ['required', 'email', 'max:255'],
             'program_id'    => ['required', 'exists:programs,id'],
+            'status'        => ['required', 'in:active,inactive,restricted']
         ]);
         $student = Student::findOrFail($id);
 

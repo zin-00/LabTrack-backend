@@ -30,7 +30,7 @@ class ComputerUnlockRequested implements ShouldBroadcast
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('computer.' .$this->computerId),
+            new Channel('computer.' .$this->computerId),
         ];
     }
 

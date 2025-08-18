@@ -13,7 +13,8 @@ class Student extends Model
         'last_name',
         'email',
         'rfid_uid',
-        'program_id'
+        'program_id',
+        'status',
     ];
 
 

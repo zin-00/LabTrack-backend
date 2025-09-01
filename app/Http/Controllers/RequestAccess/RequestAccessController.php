@@ -38,6 +38,7 @@ class RequestAccessController extends Controller
 
         try {
             $data = $validator->validated();
+            unset($data['password_confirmation']); // remove it from the data before sending to database
             $data['password'] = bcrypt($data['password']);
             $data['status'] = 'pending';
 

@@ -22,4 +22,20 @@ class Computer extends Model
     public function computer_logs(){
         return $this->hasMany(ComputerLog::class);
     }
+
+    public function students()
+    {
+        return $this->belongsToMany(Student::class, 'computer_students')
+            ->withTimestamps();
+    }
+     // Add this method to get assigned students count
+    public function getAssignedStudentsCountAttribute()
+    {
+        return $this->students()->count();
+    }
+
+    public function computerStudents()
+    {
+        return $this->hasMany(ComputerStudent::class);
+    }
 }

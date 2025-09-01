@@ -5,14 +5,18 @@ namespace App\Http\Controllers\computers;
 use App\Events\ComputerStatusUpdated;
 use App\Events\ComputerUnlockRequested;
 use App\Events\SetOnlineEvent;
+use App\Events\Student\ScanEvent;
 use App\Http\Controllers\Controller;
 use App\Models\Computer;
 use App\Models\ComputerLog;
+use App\Models\ComputerStudent;
 use App\Models\Student;
 use Carbon\Carbon;
-use Illuminate\Container\Attributes\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
+
 
 class ComputerController extends Controller
 {
@@ -41,6 +45,8 @@ class ComputerController extends Controller
         ]);
 
         $computer = Computer::create($data);
+
+        ComputerStatusUpdated::dispatch($computer);
 
         return response()->json([
             'message' => 'Computer registered successfully',
@@ -101,7 +107,7 @@ class ComputerController extends Controller
     }
 
     // For Unlocking Computers
-    public function computerState(Request $request, $id){
+    public function unlock(Request $request, $id){
         $request->validate([
             'rfid_uid' => 'required|string|max:255',
         ]);
@@ -121,7 +127,7 @@ class ComputerController extends Controller
                 'ip_address'   => $computer->ip_address,
                 'mac_address'  => $computer->mac_address,
                 'program'      => $student->program?->program_name ?? 'N/A',
-                'year_level'   => $student->year_level,
+                // 'year_level'   => $student->year_level,
                 'start_time'   => Carbon::now(),
                 'end_time'     => null,
             ]);
@@ -130,7 +136,10 @@ class ComputerController extends Controller
             return response()->json(['message' => 'Failed to create computer log'], 500);
         }
 
-        event(new ComputerUnlockRequested($computer->id, $student->id));
+        // event(new ComputerUnlockRequested($computer->id, $student->id));
+
+        ComputerStatusUpdated::dispatch($computer->id, $student->id);
+        ComputerUnlockRequested::dispatch($computer);
 
         return response()->json([
             'message' => 'Computer state updated successfully',
@@ -239,29 +248,290 @@ class ComputerController extends Controller
         // Create new computer
         $computer = Computer::create($data);
 
+        ComputerStatusUpdated::dispatch($computer);
+
         return response()->json([
             'message' => 'Computer registered successfully',
             'computer' => $computer,
         ], 201);
     }
 
-    // public function updateStatus(Request $request)
-    // {
-    //     $request->validate([
-    //         'ip_address' => 'required|string|ip',
-    //         'is_online' => 'required|boolean'
-    //     ]);
+public function unlockAssignedComputer(Request $request){
+    $request->validate([
+        'rfid_uid' => 'required|string|max:255',
+    ]);
 
-    //     $computer = Computer::where('ip_address', $request->ip_address)->first();
+    $student = Student::where('rfid_uid', $request->input('rfid_uid'))->first();
 
-    //     if ($computer) {
-    //         $computer->update(['is_online' => $request->is_online]);
-    //         return response()->json(['status' => 'success']);
-    //     }
+    if(!$student){
+        return response()->json(['message' => 'Student not found'], 404);
+    }
 
-    //     return response()->json(['error' => 'Computer not found'], 404);
-    // }
+    // Use count() instead of empty() check for collections
+    $computers = $student->computers()->get();
+
+    if($computers->count() === 0){
+        return response()->json(['message' => 'No computers assigned to this student'], 404);
+    }
+
+    $unlockedComputers = [];
+
+    foreach ($computers as $computer) {
+        $computer->update(['is_lock' => false]);
+
+        // Create computer log - make sure to include year_level
+        $computerLog = ComputerLog::create([
+            'student_id' => $student->id,
+            'computer_id' => $computer->id,
+            'ip_address' => $computer->ip_address,
+            'mac_address' => $computer->mac_address,
+            'program' => $student->program?->program_name ?? 'N/A',
+            'year_level' => $student->year_level ?? 'N/A', // Add this required field
+            'start_time' => Carbon::now(),
+            'end_time' => null,
+        ]);
+
+        $unlockedComputers[] = [
+            'id' => $computer->id,
+            'computer_number' => $computer->computer_number,
+            'ip_address' => $computer->ip_address,
+            'log_id' => $computerLog->id
+        ];
+    }
+
+    ScanEvent::dispatch($student);
+    ComputerUnlockRequested::dispatch($computer);
+
+    return response()->json([
+        'message' => 'Computers unlocked successfully',
+        'computers' => $unlockedComputers, // Return meaningful data
+        'student' => [
+            'id' => $student->id,
+            'name' => $student->first_name . ' ' . $student->last_name,
+            'student_id' => $student->student_id
+        ]
+    ]);
+}
+
+//  public function assignStudent(Request $request)
+//     {
+//         $validator = Validator::make($request->all(), [
+//             'computer_id' => 'required|exists:computers,id',
+//             'student_id' => 'required|exists:students,id'
+//         ]);
+
+//         if ($validator->fails()) {
+//             return response()->json([
+//                 'message' => 'Validation failed',
+//                 'errors' => $validator->errors()
+//             ], 422);
+//         }
+
+//         try {
+//             DB::beginTransaction();
+
+//             $computer = Computer::findOrFail($request->computer_id);
+//             $student = Student::findOrFail($request->student_id);
+
+//             if ($computer->status !== 'active') {
+//                 return response()->json([
+//                     'message' => 'Computer is not available for assignment'
+//                 ], 422);
+//             }
+
+//             $existingAssignment = ComputerStudent::where('computer_id', $computer->id)
+//                 ->where('student_id', $student->id)
+//                 ->whereNull('unassign_at')
+//                 ->first();
+
+//             if ($existingAssignment) {
+//                 return response()->json([
+//                     'message' => 'Student is already assigned to this computer'
+//                 ], 422);
+//             }
+
+//             $otherAssignment = ComputerStudent::where('student_id', $student->id)
+//                 ->whereNull('unassign_at')
+//                 ->first();
+
+//             if ($otherAssignment) {
+//                 return response()->json([
+//                     'message' => 'Student is already assigned to another computer'
+//                 ], 422);
+//             }
+
+//             ComputerStudent::create([
+//                 'computer_id' => $computer->id,
+//                 'student_id' => $student->id,
+//                 'assigned_at' => Carbon::now(),
+//                 // 'status' => 'active'
+//             ]);
+
+//             DB::commit();
+
+//             return response()->json([
+//                 'message' => 'Student assigned successfully',
+//                 'assignment' => [
+//                     'computer' => $computer->load('laboratory'),
+//                     'student' => $student->load('program')
+//                 ]
+//             ]);
+
+//         } catch (\Exception $e) {
+//             DB::rollback();
+//             return response()->json([
+//                 'message' => 'Failed to assign student: ' . $e->getMessage()
+//             ], 500);
+//         }
+//     }
+public function bulkAssign(Request $request)
+{
+    $request->validate([
+        'computer_id'   => 'required|exists:computers,id',
+        'student_ids'   => 'required|array',
+        'student_ids.*' => 'exists:students,id',
+    ]);
+
+    $computer = Computer::findOrFail($request->computer_id);
+    $labId    = $computer->laboratory_id;
+
+    $conflicts = [];
+    $successfulAssignments = [];
+
+    foreach ($request->student_ids as $studentId) {
+        // Check if student already assigned in THIS laboratory
+        $existsInSameLab = DB::table('computer_students as cs')
+            ->join('computers as c', 'c.id', '=', 'cs.computer_id')
+            ->where('cs.student_id', $studentId)
+            ->where('c.laboratory_id', $labId)
+            ->exists();
+
+        if ($existsInSameLab) {
+            $student = Student::find($studentId);
+            $conflicts[] = $student ? $student->first_name . ' ' . $student->last_name : "Student ID $studentId";
+            continue;
+        }
+
+        // Otherwise assign student to the selected computer
+        ComputerStudent::create([
+            'computer_id' => $computer->id,
+            'student_id'  => $studentId,
+        ]);
+
+        $successfulAssignments[] = $studentId;
+    }
+
+    if (!empty($conflicts)) {
+        return response()->json([
+            'message'                 => 'Some students could not be assigned due to conflicts in this laboratory.',
+            'conflicts'               => $conflicts,
+            'successful_assignments'  => $successfulAssignments
+        ], 422);
+    }
+
+    return response()->json([
+        'message'        => 'All students assigned successfully',
+        'assigned_count' => count($successfulAssignments)
+    ]);
+}
 
 
+
+public function getUnassignedStudents(Request $request)
+{
+    try {
+        $computerId = $request->computer_id;
+        $yearLevel  = $request->year_level;
+        $program    = $request->program;
+        $search     = $request->search;
+
+        if (!$computerId) {
+            return response()->json(['error' => 'Computer ID is required'], 400);
+        }
+
+        // Get the computer and its lab
+        $computer = Computer::find($computerId);
+        if (!$computer) {
+            return response()->json(['error' => 'Computer not found'], 404);
+        }
+
+        $labId = $computer->laboratory_id;
+
+        // 🔹 Get student_ids already assigned in THIS lab only
+        $assignedInLab = DB::table('computer_students as cs')
+            ->join('computers as c', 'c.id', '=', 'cs.computer_id')
+            ->where('c.laboratory_id', $labId)
+            ->pluck('cs.student_id')
+            ->toArray();
+
+        // 🔹 Only exclude students in THIS lab
+        $query = Student::query()
+            ->when(!empty($assignedInLab), function ($q) use ($assignedInLab) {
+                $q->whereNotIn('id', $assignedInLab);
+            });
+
+        // 🔹 Apply filters
+        if (!empty($yearLevel) && $yearLevel !== 'all') {
+            $query->where('year_level', $yearLevel);
+        }
+
+        if (!empty($program) && $program !== 'all') {
+            $query->where('program_id', $program);
+        }
+
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('first_name', 'like', "%$search%")
+                  ->orWhere('last_name', 'like', "%$search%")
+                  ->orWhere('student_id', 'like', "%$search%");
+            });
+        }
+
+        $students = $query->orderBy('last_name')->orderBy('first_name')->get();
+
+        return response()->json([
+            'students' => $students,
+            'total'    => $students->count(),
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error('Error in getUnassignedStudents: ' . $e->getMessage());
+        return response()->json(['error' => 'Internal server error'], 500);
+    }
+}
+
+
+
+    // Unassign students from a computer
+    public function bulkUnassignStudents(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'computer_id' => 'required|exists:computers,id',
+            'student_ids' => 'required|array|min:1',
+            'student_ids.*' => 'exists:students,id'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $computer = Computer::findOrFail($request->computer_id);
+        $studentIds = $request->student_ids;
+
+        // Unassign students by setting unassign_at timestamp
+        $now = now();
+        $unassignedCount = ComputerStudent::where('computer_id', $computer->id)
+            ->whereIn('student_id', $studentIds)
+            ->whereNull('unassign_at')
+            ->update(['unassign_at' => $now]);
+
+        return response()->json([
+            'message' => $unassignedCount . ' student(s) unassigned successfully',
+            'unassigned_count' => $unassignedCount
+        ]);
+    }
 
 }

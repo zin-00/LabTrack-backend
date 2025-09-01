@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {
@@ -43,23 +44,31 @@ class AdminController extends Controller
         ], 201);
     }
 
-    public function update(Request $request, $id){
-        $data = $request->validate([
-            'name' => 'sometimes|required|string|max:255',
-            'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $id,
-            'password' => 'sometimes|required|string|min:8|confirmed',
-            'status' => 'sometimes|required|enum:active,inactive,restricted',
-            'roles' => 'sometimes|required|enum:admin,faculty',
-        ]);
 
-        $user = User::findOrFail($id);
-        $user->update(array_filter($data)); // Only update fields that are present
+public function update(Request $request, $id){
+    $data = $request->validate([
+        'name' => 'sometimes|required|string|max:255',
+        'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $id,
+        'password' => 'sometimes|nullable|string|min:8|confirmed',
+        'status' => ['sometimes','required', Rule::in(['active','inactive','restricted'])],
+        'roles'  => ['sometimes','required', Rule::in(['admin','faculty'])],
+    ]);
 
-        return response()->json([
-            'message' => 'User updated successfully',
-            'user' => $user,
-        ]);
+    if (!empty($data['password'])) {
+        $data['password'] = bcrypt($data['password']);
+    } else {
+        unset($data['password']); // don’t overwrite if empty
     }
+
+    $user = User::findOrFail($id);
+    $user->update($data);
+
+    return response()->json([
+        'message' => 'User updated successfully',
+        'user' => $user,
+    ]);
+}
+
 
     public function edit (Request $request, $id){
         $user = User::findOrFail($id);

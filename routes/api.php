@@ -26,6 +26,8 @@ Route::post('auth/register', [AuthController::class, 'register'])->name('auth.re
 Route::post('auth/login', [AuthController::class, 'login'])->name('auth.login');
 Route::post('auth/check-email', [AuthController::class, 'isEmailExist']);
 
+Route::post('/computer-unlock', [ComputerController::class, 'unlockAssignedComputer']);
+
 
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -45,6 +47,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/computers/{id}', [ComputerController::class, 'destroy']);
     Route::get('/computers/null-lab', [ComputerController::class, 'showAllComputerWithNullLabId']);
 
+    // Assigned computer to students
+     // Single assignment
+    Route::post('/computer/assign', [ComputerController::class, 'assignStudent']);
+
+    // Bulk assignment
+    Route::post('/computer/bulk-assign', [ComputerController::class, 'bulkAssign']);
+
+    // Unassign students
+    Route::post('/computer/unassign', [ComputerController::class, 'unassignStudent']);
+
+    // Get unassigned students with filters
+    Route::get('/students/unassigned', [ComputerController::class, 'getUnassignedStudents']);
+
+    // Get computer assignments
+    Route::get('/computer/{id}/assignments', [ComputerController::class, 'getComputerAssignments']);
 
     // Laboratory routes
     Route::get('/laboratories', [LabController::class, 'index']);
@@ -60,10 +77,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Computer logs
     Route::get('/logs', [ComputerLogController::class, 'index']);
 
-    // State
-
     // Route::post('/pc-online/{ip}', [ComputerController::class, 'isOnline']);
-    Route::put('/computer/state/{id}', [ComputerController::class, 'computerState']);
+    Route::put('/computer/state/{id}', [ComputerController::class, 'unlock']);
 
     // Students
     Route::post('/students', [StudentController::class, 'store']);
@@ -81,12 +96,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/users/{id}', [AdminController::class, 'delete']);
     });
 
-
+    // Students assign computers routes
+    Route::get('/students/unassigned', [StudentController::class, 'getUnassignedStudents']);
+    Route::post('/computer/assign', [ComputerController::class, 'assignStudent']);
 
     // Computer status distribution
     Route::get('/status-distribution', [ComputerStatusDistribution::class, 'index']);
     Route::get('/data-distribution', [ComputerStatusDistribution::class, 'getDataDistribution']);
 
+    // Export
+    Route::get('/logs/export', [ComputerLogController::class, 'export']);
 
 });
 
@@ -101,4 +120,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
 Route::get('/data-distribution-test', function() {
     return response()->json(['test' => 'ok']);
+});
+Route::get('/test-unlock/{ip}', function($ip) {
+    $computer = \App\Models\Computer::where('ip_address', $ip)->first();
+    if ($computer) {
+        \App\Events\ComputerUnlockRequested::dispatch($computer);
+        return response()->json(['message' => 'Event dispatched']);
+    }
+    return response()->json(['message' => 'Computer not found'], 404);
 });

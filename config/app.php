@@ -13,6 +13,7 @@ return [
     |
     */
 
+    'API_KEY' => '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',
     'name' => env('APP_NAME', 'Laravel'),
 
     /*

@@ -10,6 +10,7 @@ class ComputerLog extends Model
         'student_id',
         'computer_id',
         'ip_address',
+        'mac_address',
         'program',
         'year_level',
         'start_time',

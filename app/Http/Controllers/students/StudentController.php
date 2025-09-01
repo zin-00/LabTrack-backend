@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\students;
 
 use App\Http\Controllers\Controller;
+use App\Models\Program;
 use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -37,15 +38,10 @@ class StudentController extends Controller
             'student' => $student
         ], 201);
     }
-public function importStudents(Request $request) {
+public function importStudents(Request $request)
+{
     $validator = Validator::make($request->all(), [
         'students' => ['required', 'array', 'min:1'],
-        'students.*.student_id' => ['required', 'string', 'max:255'],
-        'students.*.rfid_uid' => ['required', 'string', 'max:255'],
-        'students.*.first_name' => ['required', 'string', 'max:255'],
-        'students.*.middle_name' => ['required', 'string', 'max:255'],
-        'students.*.last_name' => ['required', 'string', 'max:255'],
-        'students.*.email' => ['required', 'email', 'max:255'],
     ]);
 
     if ($validator->fails()) {
@@ -62,12 +58,33 @@ public function importStudents(Request $request) {
     DB::beginTransaction();
     try {
         foreach ($request->students as $studentData) {
+            // ❌ Skip row if key fields are missing
+            if (
+                empty($studentData['student_id']) ||
+                empty($studentData['rfid_uid']) ||
+                empty($studentData['first_name']) ||
+                empty($studentData['last_name']) ||
+                empty($studentData['email']) ||
+                empty($studentData['year_level_id'])
+            ) {
+                $skippedCount++;
+                $errors[] = [
+                    'student' => $studentData,
+                    'errors' => ['Row skipped because of missing required fields']
+                ];
+                continue;
+            }
+
             try {
-                // Validate individual student
+                // ✅ Validate only this student
                 $studentValidator = Validator::make($studentData, [
                     'student_id' => ['required', 'string', 'max:255', 'unique:students,student_id'],
-                    'rfid_uid' => ['required', 'string', 'max:255', 'unique:students,rfid_uid'],
-                    'email' => ['required', 'email', 'max:255', 'unique:students,email'],
+                    'rfid_uid'   => ['required', 'string', 'max:255', 'unique:students,rfid_uid'],
+                    'first_name' => ['required', 'string', 'max:255'],
+                    'middle_name'=> ['nullable', 'string', 'max:255'],
+                    'last_name'  => ['required', 'string', 'max:255'],
+                    'email'      => ['required', 'email', 'max:255', 'unique:students,email'],
+                    'year_level_id' => ['required', 'exists:year_levels,id'],
                 ]);
 
                 if ($studentValidator->fails()) {
@@ -81,6 +98,7 @@ public function importStudents(Request $request) {
 
                 Student::create($studentData);
                 $importedCount++;
+
             } catch (\Exception $e) {
                 $skippedCount++;
                 $errors[] = [
@@ -98,6 +116,7 @@ public function importStudents(Request $request) {
             'skipped_count' => $skippedCount,
             'errors' => $errors
         ], 201);
+
     } catch (\Exception $e) {
         DB::rollBack();
         return response()->json([
@@ -106,6 +125,7 @@ public function importStudents(Request $request) {
         ], 500);
     }
 }
+
     // public function importStudents(Request $request){
     //     $validator = Validator::make($request->all(), [
     //         'students' => ['required', 'array', 'min:1'],
@@ -194,4 +214,35 @@ public function importStudents(Request $request) {
         ]);
     }
 
+    public function getUnassignedStudents(Request $request)
+    {
+        $query = Student::doesntHave('computers')
+            ->with('program')
+            ->where('status', 'active');
+
+        // Apply filters
+        if ($request->has('year_level') && $request->year_level !== 'all') {
+            $query->where('year_level', $request->year_level);
+        }
+
+        if ($request->has('program') && $request->program !== 'all') {
+            $query->where('program_id', $request->program);
+        }
+
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('first_name', 'like', "%{$search}%")
+                ->orWhere('last_name', 'like', "%{$search}%")
+                ->orWhere('student_id', 'like', "%{$search}%");
+            });
+        }
+
+        $students = $query->orderBy('last_name')->get();
+
+        return response()->json([
+            'students' => $students,
+            'programs' => Program::all() // Return all programs for filter options
+        ]);
+    }
 }

@@ -28,7 +28,10 @@ class DatabaseSeeder extends Seeder
         // );
         // $this->call(StudentSeeder::class);
 
-        $this->call(ComputerSeeder::class);
+        // $this->call(ComputerSeeder::class);
+
+        $this->call(YearLevelSeeder::class);
+        $this->call(SectionSeeder::class);
 
     }
 }

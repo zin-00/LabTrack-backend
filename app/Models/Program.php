@@ -15,4 +15,9 @@ class Program extends Model
     public function students(){
         return $this->hasMany(Student::class);
     }
+     // Add alias for program_code to maintain compatibility
+    public function getCodeAttribute()
+    {
+        return $this->program_code;
+    }
 }

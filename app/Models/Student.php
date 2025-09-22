@@ -44,18 +44,58 @@ class Student extends Model
     public function computers(): BelongsToMany
     {
         return $this->belongsToMany(Computer::class, 'computer_students')
+            ->withPivot('laboratory_id')
             ->withTimestamps();
     }
 
-    // Add this method to get full name
-    public function getFullNameAttribute()
+    // Get full name attribute
+    public function getFullNameAttribute(): string
     {
-        return "{$this->first_name} {$this->last_name}";
+        $middleName = $this->middle_name ? " {$this->middle_name}" : '';
+        return "{$this->first_name}{$middleName} {$this->last_name}";
     }
 
-    // Add this method to check if student is assigned to any computer
-    public function getIsAssignedAttribute()
+    // Check if student is assigned to any computer
+    public function getIsAssignedAttribute(): bool
     {
         return $this->computers()->exists();
+    }
+
+    // Check if student is assigned to a specific computer
+    public function isAssignedToComputer(int $computerId): bool
+    {
+        return $this->computers()->where('computer_id', $computerId)->exists();
+    }
+
+    // Get computers assigned to this student in a specific laboratory
+    public function getComputersInLaboratory(int $laboratoryId)
+    {
+        return $this->computers()
+            ->where('laboratory_id', $laboratoryId)
+            ->get();
+    }
+
+    public function browserActivityLogs()
+    {
+        return $this->hasManyThrough(
+            BrowserActivity::class,
+            Computer::class,
+            'student_id',
+            'computer_id',
+            'id',
+            'id'
+        );
+    }
+
+    public function computerAssignments(): HasMany
+    {
+        return $this->hasMany(ComputerStudent::class);
+    }
+
+    public function assignedComputers(): BelongsToMany
+    {
+        return $this->belongsToMany(Computer::class, 'computer_students')
+            ->withPivot('laboratory_id')
+            ->withTimestamps();
     }
 }

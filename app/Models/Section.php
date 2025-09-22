@@ -8,7 +8,8 @@ class Section extends Model
 {
     protected $fillable = [
         'name',
-        'description'
+        'description',
+        'status'
     ];
 
     public function students(){

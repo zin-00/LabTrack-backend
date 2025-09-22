@@ -38,7 +38,7 @@ class RequestAccessController extends Controller
 
         try {
             $data = $validator->validated();
-            unset($data['password_confirmation']); // remove it from the data before sending to database
+            unset($data['password_confirmation']);
             $data['password'] = bcrypt($data['password']);
             $data['status'] = 'pending';
 
@@ -60,25 +60,33 @@ class RequestAccessController extends Controller
     }
 
     public function approve(Request $request, $id){
-        $requestAccess = RequestAccess::findOrFail($id);
+    $requestAccess = RequestAccess::findOrFail($id);
 
-        $user = User::create([
-            'name' => $requestAccess->fullname,
-            'email' => $requestAccess->email,
-            'password' => bcrypt($requestAccess->password),
-            'status' => $requestAccess->status,
-            'roles' => $requestAccess->role,
-        ]);
-
-        $requestAccess->update([
-            'status' => 'approved'
-        ]);
+    // Check if user already exists with this email
+    $existingUser = User::where('email', $requestAccess->email)->first();
+    if ($existingUser) {
         return response()->json([
-            'message' => 'RequestAccess updated successfully',
-            'user' => $user,
-        ]);
-
+            'message' => 'User with this email already exists',
+        ], 400);
     }
+
+    $user = User::create([
+        'name' => $requestAccess->fullname,
+        'email' => $requestAccess->email,
+        'password' => $requestAccess->password,
+        'status' => 'active',
+        'roles' => $requestAccess->role,
+    ]);
+
+    $requestAccess->update([
+        'status' => 'approved'
+    ]);
+
+    return response()->json([
+        'message' => 'Request approved successfully',
+        'user' => $user,
+    ]);
+}
 
     public function reject(Request $request, $id){
         $requestAccess = RequestAccess::findOrFail($id);

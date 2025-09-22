@@ -3,16 +3,19 @@
 namespace App\Http\Controllers\students;
 
 use App\Http\Controllers\Controller;
+use App\Models\Computer;
+use App\Models\ComputerStudent;
 use App\Models\Program;
 use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class StudentController extends Controller
 {
     public function index(Request $request){
-    $students = Student::with('program')->
+    $students = Student::with(['program', 'year_level','section'])->
     orderBy('created_at', 'desc')->paginate(7);
         return response()->json([
             'students' => $students,
@@ -214,35 +217,79 @@ public function importStudents(Request $request)
         ]);
     }
 
-    public function getUnassignedStudents(Request $request)
-    {
-        $query = Student::doesntHave('computers')
-            ->with('program')
-            ->where('status', 'active');
+   public function getUnassignedStudents(Request $request)
+{
+    try {
+        $computerId = $request->computer_id;
+        $yearLevel  = $request->year_level;
+        $program    = $request->program;
+        $search     = $request->search;
+
+        Log::debug('getUnassignedStudents called with:', [
+            'computer_id' => $computerId,
+            'year_level' => $yearLevel,
+            'program' => $program,
+            'search' => $search
+        ]);
+
+        if (!$computerId) {
+            return response()->json(['error' => 'Computer ID is required'], 400);
+        }
+
+        // Get the computer and its lab
+        $computer = Computer::find($computerId);
+        if (!$computer) {
+            return response()->json(['error' => 'Computer not found'], 404);
+        }
+
+        $labId = $computer->laboratory_id;
+        Log::debug('Computer found:', ['computer' => $computer->toArray(), 'lab_id' => $labId]);
+
+        // Get student_ids already assigned in THIS lab only
+        $assignedInLab = ComputerStudent::where('laboratory_id', $labId)
+            ->pluck('student_id')
+            ->toArray();
+
+        Log::debug('Students already assigned in lab ' . $labId . ':', $assignedInLab);
+
+        // Only exclude students in THIS lab
+        $query = Student::query()
+            ->when(!empty($assignedInLab), function ($q) use ($assignedInLab) {
+                $q->whereNotIn('id', $assignedInLab);
+            });
 
         // Apply filters
-        if ($request->has('year_level') && $request->year_level !== 'all') {
-            $query->where('year_level', $request->year_level);
+        if (!empty($yearLevel) && $yearLevel !== 'all') {
+            $query->where('year_level_id', $yearLevel);
         }
 
-        if ($request->has('program') && $request->program !== 'all') {
-            $query->where('program_id', $request->program);
+        if (!empty($program) && $program !== 'all') {
+            $query->where('program_id', $program);
         }
 
-        if ($request->has('search') && !empty($request->search)) {
-            $search = $request->search;
+        if (!empty($search)) {
             $query->where(function ($q) use ($search) {
-                $q->where('first_name', 'like', "%{$search}%")
-                ->orWhere('last_name', 'like', "%{$search}%")
-                ->orWhere('student_id', 'like', "%{$search}%");
+                $q->where('first_name', 'like', "%$search%")
+                  ->orWhere('last_name', 'like', "%$search%")
+                  ->orWhere('student_id', 'like', "%$search%");
             });
         }
 
-        $students = $query->orderBy('last_name')->get();
+        $students = $query->orderBy('last_name')->orderBy('first_name')->get();
+
+        Log::debug('Unassigned students found:', [
+            'count' => $students->count(),
+            'students' => $students->pluck('id')->toArray()
+        ]);
 
         return response()->json([
             'students' => $students,
-            'programs' => Program::all() // Return all programs for filter options
+            'total'    => $students->count(),
         ]);
+
+    } catch (\Exception $e) {
+        Log::error('Error in getUnassignedStudents: ' . $e->getMessage());
+        return response()->json(['error' => 'Internal server error'], 500);
     }
+}
 }

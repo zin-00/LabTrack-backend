@@ -10,29 +10,18 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class ComputerStatsEvent implements ShouldBroadcast
+class ComputerCameOnline
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public $computer;
-    public function __construct($computer)
+    /**
+     * Create a new event instance.
+     */
+    public function __construct()
     {
-        $this->computer = $computer;
+        //
     }
 
-    public function broadcastAs()
-    {
-        return 'ComputerStatsEvent';
-    }
-
-    public function broadcastWith(){
-        return [
-            'computer' => $this->computer,
-            'ip_address' => $this->computer->ip_address,
-            'is_online' => $this->computer->is_online,
-            'is_lock' => $this->computer->is_lock,
-        ];
-    }
     /**
      * Get the channels the event should broadcast on.
      *
@@ -41,7 +30,7 @@ class ComputerStatsEvent implements ShouldBroadcast
     public function broadcastOn(): array
     {
         return [
-            new Channel('computers'),
+            new PrivateChannel('channel-name'),
         ];
     }
 }

@@ -30,17 +30,25 @@ class ComputerStatusUpdated implements ShouldBroadcast, ShouldQueue
      * @return array<int, \Illuminate\Broadcasting\Channel>
      */
         public function broadcastOn()
-    {
-        // Private channel for this computer's IP address
-        return new Channel('computer-status.' . $this->computer->ip_address);    }
+        {
+            return new Channel('computer-status');
+            return new Channel('computer-status.' . $this->computer->ip_address);
+        }
 
         public function broadcastWith()
         {
             return [
-                        'ip_address' => $this->computer->ip_address,
-                        'is_online' => $this->computer->is_online,
-                        'is_lock' => $this->computer->is_lock,
-                        'computer_number' => $this->computer->computer_number,
+                'computer' => [
+                                'id' => $this->computer->id,
+                                'computer_number' => $this->computer->computer_number,
+                                'ip_address' => $this->computer->ip_address,
+                                'mac_address' => $this->computer->mac_address,
+                                'laboratory_id' => $this->computer->laboratory_id,
+                                'status' => $this->computer->status,
+                                'is_online' => $this->computer->is_online,
+                                'is_lock' => $this->computer->is_lock,
+                            ]
+
                     ];
         }
 }

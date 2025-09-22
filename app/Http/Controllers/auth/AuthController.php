@@ -22,7 +22,7 @@ class AuthController extends Controller
             'password' => bcrypt($data['password']),
         ]);
 
-        $token = $user->createToken('token')->plainTextToken;
+        $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
             'message' => 'User registered successfully',
@@ -43,7 +43,7 @@ class AuthController extends Controller
         }
 
         $user = auth()->user();
-        $token = $user->createToken('token')->plainTextToken;
+        $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
             'message' => 'User logged in successfully',

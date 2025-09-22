@@ -21,6 +21,7 @@ return new class extends Migration
             $table->string('year_level');
             $table->timestamp('start_time')->nullable();
             $table->timestamp('end_time')->nullable();
+            $table->integer('uptime')->nullable();
             $table->timestamps();
         });
     }

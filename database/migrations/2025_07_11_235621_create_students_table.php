@@ -20,6 +20,9 @@ return new class extends Migration
             $table->string('last_name');
             $table->string('email');
             $table->unsignedBigInteger('program_id')->nullable();
+            $table->unsignedBigInteger('year_level_id')->nullable();
+            $table->unsignedBigInteger('section_id')->nullable();
+            $table->enum('status', ['active', 'inactive', 'restricted'])->default('active');
             $table->timestamps();
 
             // $table->foreign('program_id')->references('id')->on('programs')->onDelete('cascade');

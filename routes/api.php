@@ -1,5 +1,6 @@
 <?php
 
+use App\Events\TestEvent;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Api\BroadcastAuthController;
 use App\Http\Controllers\Auth\AuthController;
@@ -10,10 +11,15 @@ use App\Http\Controllers\laboratories\LabController;
 use App\Http\Controllers\program\ProgramController;
 use App\Http\Controllers\RequestAccess\RequestAccessController;
 use App\Http\Controllers\students\StudentController;
+use App\Models\BrowserActivity;
+use App\Models\Computer;
 use Illuminate\Broadcasting\BroadcastController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
+
+
+
 
 
 
@@ -27,17 +33,13 @@ Route::post('auth/login', [AuthController::class, 'login'])->name('auth.login');
 Route::post('auth/check-email', [AuthController::class, 'isEmailExist']);
 
 Route::post('/computer-unlock', [ComputerController::class, 'unlockAssignedComputer']);
+Route::post('/unlock-computers-by-lab/{labId}/{rfid_uid}', [ComputerController::class, 'unlockComputersByLab']);
 
 
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('auth/user', [AuthController::class, 'user'])->name('auth.user');
     Route::delete('auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
-
-        // Request Access
-    Route::get('/request-access', [RequestAccessController::class, 'index']);
-    Route::patch('/request-access/{id}/approve', [RequestAccessController::class, 'approve']);
-    Route::patch('/request-access/{id}/reject', [RequestAccessController::class, 'reject']);
 
 
     // Computer routes
@@ -47,7 +49,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/computers/{id}', [ComputerController::class, 'destroy']);
     Route::get('/computers/null-lab', [ComputerController::class, 'showAllComputerWithNullLabId']);
 
-    // Assigned computer to students
      // Single assignment
     Route::post('/computer/assign', [ComputerController::class, 'assignStudent']);
 
@@ -63,13 +64,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // Get computer assignments
     Route::get('/computer/{id}/assignments', [ComputerController::class, 'getComputerAssignments']);
 
-    // Laboratory routes
-    Route::get('/laboratories', [LabController::class, 'index']);
-    Route::post('/laboratories', [LabController::class, 'store']);
-    Route::put('/laboratories/{id}', [LabController::class, 'update']);
-    Route::delete('/laboratories/{id}', [LabController::class, 'destroy']);
-    Route::post('/assign-laboratories', [ComputerController::class, 'assignLaboratory']);
-
 
     // Program routes
     Route::get('/programs', [ProgramController::class, 'index']);
@@ -80,21 +74,11 @@ Route::middleware('auth:sanctum')->group(function () {
     // Route::post('/pc-online/{ip}', [ComputerController::class, 'isOnline']);
     Route::put('/computer/state/{id}', [ComputerController::class, 'unlock']);
 
-    // Students
-    Route::post('/students', [StudentController::class, 'store']);
-    Route::put('/students/{id}', [StudentController::class, 'update']);
-    Route::get('/students', [StudentController::class, 'index']);
-    Route::delete('/students/{id}', [StudentController::class, 'destroy']);
-    Route::post('/students/import', [StudentController::class, 'importStudents']);
 
-    // Admin routes
-    Route::prefix('admin')->group(function () {
-        Route::get('/users', [AdminController::class, 'index']);
-        Route::post('/users', [AdminController::class, 'store']);
-        Route::put('/users/{id}', [AdminController::class, 'update']);
-        Route::get('/users/{id}', [AdminController::class, 'edit']);
-        Route::delete('/users/{id}', [AdminController::class, 'delete']);
-    });
+
+
+
+
 
     // Students assign computers routes
     Route::get('/students/unassigned', [StudentController::class, 'getUnassignedStudents']);
@@ -116,6 +100,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Request access
     Route::post('/request-access', [RequestAccessController::class, 'store']);
+    Route::post('/heartbeat/{ip}', [ComputerController::class, 'heartbeat']);
 
 
 Route::get('/data-distribution-test', function() {
@@ -129,3 +114,38 @@ Route::get('/test-unlock/{ip}', function($ip) {
     }
     return response()->json(['message' => 'Computer not found'], 404);
 });
+    Route::get('/fire-test', function () {
+    broadcast(new TestEvent("Hello from Laravel Reverb!"));
+    return "Event fired!";
+    });
+    Route::get('/test-browser-activity', function () {
+    $computer = Computer::first();
+
+    if (!$computer) {
+        return response()->json(['error' => 'No computers found'], 404);
+    }
+
+    $activity = BrowserActivity::create([
+        'ip_address' => $computer->ip_address,
+        'computer_id' => $computer->id,
+        'browser_name' => 'Test Browser',
+        'title' => 'Test Title',
+        'url' => 'https://example.com',
+        'duration' => '00:05:00',
+    ]);
+
+    return response()->json([
+        'message' => 'Test activity created',
+        'activity' => $activity
+    ]);
+});
+
+require __DIR__.'/section/section.php';
+require __DIR__.'/program/program.php';
+require __DIR__.'/yearlevel/yearlvl.php';
+require __DIR__.'/activity/activity.php';
+require __DIR__.'/request/request.php';
+require __DIR__.'/laboratory/laboratory.php';
+require __DIR__.'/student/student.php';
+require __DIR__.'/admin/admin.php';
+require __DIR__ .'/admin/profile/profile.php';
